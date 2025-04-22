@@ -6,13 +6,6 @@ backend:
         - '# Execute Amplify CLI with the helper script'
         - REACT_APP_CONNECT_INSTANCE_ID=$REACT_APP_CONNECT_INSTANCE_ID
         - amplifyPush --simple
-customHeaders:
-  - pattern: "**/*"
-    headers:
-      - key: Content-Security-Policy
-        value: frame-ancestors *;
-      - key: X-Frame-Options
-        value: ALLOWALL
 frontend:
   phases:
     preBuild:
@@ -30,3 +23,10 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
+  customHeaders:
+    - pattern: '**/*'
+      headers:
+        - key: Content-Security-Policy
+          value: frame-ancestors *;
+        - key: X-Frame-Options
+          value: ALLOWALL

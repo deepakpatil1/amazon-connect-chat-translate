@@ -123,22 +123,6 @@ const Ccp = () => {
                     if (window.parent.connect && window.parent.connect.core) {
                         clearInterval(checkParentConnect);
                         console.log("CDEBUG ===> Parent window's connect object is available");
-                        console.log("CDEBUG ===> Parent connect object:", window.parent.connect);
-                        
-                        // Initialize CCP in the iframe
-                        window.parent.connect.core.initCCP(
-                            document.getElementById("ccp-container"),
-                            {
-                                ccpUrl: connectUrl + "/connect/ccp-v2/",
-                                loginPopup: false, // Disable login popup in iframe
-                                region: process.env.REACT_APP_CONNECT_REGION,
-                                softphone: {
-                                    allowFramedSoftphone: true,
-                                    disableRingtone: false,
-                                    ringtoneUrl: "./ringtone.mp3"
-                                }
-                            }
-                        );
                         
                         // Use the parent window's context for event subscription
                         subscribeConnectEvents();
@@ -205,11 +189,6 @@ const Ccp = () => {
             return;
         }
 
-        // Subscribe to agent state changes
-        connect.core.onAgentStateChange(function(event) {
-            console.log("CDEBUG ===> Agent state changed:", event);
-        });
-
         connect.core.onViewContact(function(event) {
             var contactId = event.contactId;
             console.log("CDEBUG ===> onViewContact", contactId);
@@ -228,8 +207,6 @@ const Ccp = () => {
                 contact.onAccepted(async() => {
                     console.log("CDEBUG ===> onAccepted: ", contact);
                     const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
-                    console.log("CDEBUG ===> Agent connection found:", !!cnn);
-                    
                     if (cnn) {
                         const agentChatSession = await cnn.getMediaController();
                         console.log("CDEBUG ===> Media controller obtained:", !!agentChatSession);

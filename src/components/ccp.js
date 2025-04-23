@@ -88,19 +88,21 @@ const Ccp = () => {
     // Subscribing to CCP events. See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
     // *******
     function subscribeConnectEvents() {
-        window.connect.core.onViewContact(function(event) {
+        const isInIframe = window.self !== window.top;
+        const connect = isInIframe ? window.parent.connect : window.connect;
+
+        connect.core.onViewContact(function(event) {
             var contactId = event.contactId;
             console.log("CDEBUG ===> onViewContact", contactId)
             setCurrentContactId(contactId);    
-          });
+        });
 
         console.log("CDEBUG ===> subscribeConnectEvents");
 
         // If this is a chat session
-        if (window.connect.ChatSession) {
+        if (connect.ChatSession) {
             console.log("CDEBUG ===> Subscribing to Connect Contact Events for chats");
-            window.connect.contact(contact => {
-
+            connect.contact(contact => {
                 // This is invoked when CCP is ringing
                 contact.onConnecting(() => {
                     console.log("CDEBUG ===> onConnecting() >> contactId: ", contact.contactId);
@@ -113,7 +115,7 @@ const Ccp = () => {
                 // This is invoked when the chat is accepted
                 contact.onAccepted(async() => {
                     console.log("CDEBUG ===> onAccepted: ", contact);
-                    const cnn = contact.getConnections().find(cnn => cnn.getType() === window.connect.ConnectionType.AGENT);
+                    const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
                     const agentChatSession = await cnn.getMediaController();
                     setCurrentContactId(contact.contactId)
                     console.log("CDEBUG ===> agentChatSession ", agentChatSession)
@@ -136,7 +138,7 @@ const Ccp = () => {
                 // This is invoked when the customer and agent are connected
                 contact.onConnected(async() => {
                     console.log("CDEBUG ===> onConnected() >> contactId: ", contact.contactId);
-                    const cnn = contact.getConnections().find(cnn => cnn.getType() === window.connect.ConnectionType.AGENT);
+                    const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
                     const agentChatSession = await cnn.getMediaController();
                     getEvents(contact, agentChatSession);
                 });
@@ -155,27 +157,18 @@ const Ccp = () => {
                 // This is invoked when the agent moves out of ACW to a different state
                 contact.onDestroy(() => {
                     console.log("CDEBUG ===> onDestroy() >> contactId: ", contact.contactId);
-                    // TODO need to remove the previous chats from the store
-                    //clearChat()
                     setCurrentContactId('');
                     clearChat();
                 });
             });
 
-            /* 
-            **** Subscribe to the agent API **** 
-            See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
-            */
-
             console.log("CDEBUG ===> Subscribing to Connect Agent Events");
-            window.connect.agent((agent) => {
+            connect.agent((agent) => {
                 agent.onStateChange((agentStateChange) => {
                     // On agent state change, update the React state.
                     let state = agentStateChange.newState;
                     console.log("CDEBUG ===> New State: ", state);
-
                 });
-
             });
         }
         else {
@@ -198,8 +191,16 @@ const Ccp = () => {
         if (isInIframe) {
             // We're in an iframe (Agent Workspace)
             try {
-                // Initialize with the parent window's context
-                window.connect.core.init({
+                // Get the parent window's connect object
+                const parentConnect = window.parent.connect;
+                
+                if (!parentConnect) {
+                    console.error("Parent window's connect object not found");
+                    return;
+                }
+
+                // Use the parent window's context
+                parentConnect.core.init({
                     ccpUrl: connectUrl + "/connect/ccp-v2/",
                     region: process.env.REACT_APP_CONNECT_REGION,
                     softphone: {
@@ -207,7 +208,7 @@ const Ccp = () => {
                         disableRingtone: false,
                         ringtoneUrl: "./ringtone.mp3"
                     },
-                    loginPopup: false, // Disable login popup in iframe
+                    loginPopup: false,
                     loginOptions: {
                         autoClose: true,
                         height: 600,
@@ -219,7 +220,7 @@ const Ccp = () => {
 
                 // Wait for the CCP to be ready before subscribing to events
                 const checkCCPReady = setInterval(() => {
-                    if (window.connect.core.getAgentDataProvider()) {
+                    if (parentConnect.core.getAgentDataProvider()) {
                         clearInterval(checkCCPReady);
                         subscribeConnectEvents();
                     }

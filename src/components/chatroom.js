@@ -55,52 +55,52 @@ const Chatroom = (props) => {
         if (newMessage === "") {
             return;
         }
+
+        // Check if we have a valid currentContactId
+        if (!currentContactId || !currentContactId[0]) {
+            console.error("No active contact found");
+            return;
+        }
+
+        // Find the language for the current contact
         let destLang = languageTranslate.find(o => o.contactId === currentContactId[0]);
+        
+        // If no language is found, use a default language or show an error
+        if (!destLang || !destLang.lang) {
+            console.error("No language found for the current contact");
+            return;
+        }
+
         console.log("destLang: ", destLang);
 
-        // translate the agent message  ** Swap the below two round if you wnat to test custom termonologies **
-        // let translatedMessage = await translateText(newMessage, 'en', destLang.lang);
-
-        /***********************************CUSTOM TERMINOLOGY*************************************************    
-         
-            To support custom terminologies comment out the line above, and uncomment the below 2 lines 
-         
-         ******************************************************************************************************/
+        // translate the agent message
         console.log(newMessage);
-        let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang); // Provide a custom terminology created outside of this deployment
-        //let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang, ['connectChatTranslate']); // Provide a custom terminology created outside of this deployment
-        let translatedMessage = translatedMessageAPI.TranslatedText
+        let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang);
+        let translatedMessage = translatedMessageAPI.TranslatedText;
 
         console.log(` Original Message: ` + newMessage + `\n Translated Message: ` + translatedMessage);
+        
         // create the new message to add to Chats.
         let data2 = {
             contactId: currentContactId[0],
             username: agentUsername,
             content: <p>{newMessage}</p>,
-            translatedMessage: <p>{translatedMessage}</p>, // set to {translatedMessage.TranslatedText} if using custom terminologies
+            translatedMessage: <p>{translatedMessage}</p>,
         };
+        
         // add the new message to the store
         addChat(prevMsg => [...prevMsg, data2]);
+        
         // clear the chat input box
         setNewMessage("");
 
-        
-        
+        // Get the session for sending the message
         const session = retrieveValue(currentContactId[0]);
-
-        function retrieveValue(key){
-            var value = "";
-            for(var obj in props.session) {
-            for(var item in props.session[obj]) {
-                if(item === key) {
-                    value = props.session[obj][item];
-                    break;
-                }
-            }
-            }
-            return value;
+        if (session) {
+            await sendMessage(session, translatedMessage);
+        } else {
+            console.error("No active session found for the current contact");
         }
-        sendMessage(session, translatedMessage);
     }
 
 

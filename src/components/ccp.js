@@ -15,7 +15,6 @@ const Ccp = () => {
   const [agentChatSessionState, setAgentChatSessionState] = useState([]);
   const [isStandalone, setIsStandalone] = useState(true);
 
-  // Used only in standalone mode
   const subscribeConnectEvents = () => {
     if (!window.connect?.contact) {
       console.warn("Streams API not ready");
@@ -34,7 +33,6 @@ const Ccp = () => {
       });
 
       contact.onDestroy(() => {
-        console.log("🛑 Contact destroyed:", contact.contactId);
         setAgentChatSessionState([]);
       });
     });
@@ -52,7 +50,6 @@ const Ccp = () => {
 
       if (contactId) {
         setCurrentContactId(contactId);
-        console.log("✅ contactId set from query:", contactId);
       }
     } else {
       console.log("🟢 App running standalone → initializing CCP");
@@ -82,7 +79,6 @@ const Ccp = () => {
       <Grid columns='equal' stackable padded>
         <Grid.Row>
           {isStandalone && <div id="ccp-container"></div>}
-
           <div id="chatroom">
             <Chatroom session={agentChatSessionState} />
           </div>

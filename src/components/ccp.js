@@ -107,57 +107,28 @@ const Ccp = () => {
     // Subscribing to CCP events
     // *******
     useEffect(() => {
+        // Use the full Connect instance URL from environment variables
         const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
+        console.log("CDEBUG ===> Connect URL:", connectUrl);
         
         // Check if we're running in an iframe
         const isInIframe = window.self !== window.top;
         console.log("CDEBUG ===> Running in iframe:", isInIframe);
-        
-        // Initialize the Streams API
-        if (isInIframe) {
-            // We're in an iframe (Agent Workspace)
-            console.log("CDEBUG ===> Initializing in Agent Workspace context");
+
+        // Initialize Connect Streams
+        const initConnectStreams = async () => {
             try {
-                // Initialize our own connect instance in the iframe
-                window.connect.core.initCCP(
-                    document.getElementById("ccp-container"),
-                    {
-                        ccpUrl: connectUrl + "/connect/ccp-v2/",
-                        loginPopup: false, // Disable login popup in iframe
-                        region: process.env.REACT_APP_CONNECT_REGION,
-                        softphone: {
-                            allowFramedSoftphone: true,
-                            disableRingtone: false,
-                            ringtoneUrl: "./ringtone.mp3"
-                        }
-                    }
-                );
+                // First, ensure the connect object is available
+                if (!window.connect) {
+                    console.error("CDEBUG ===> Connect Streams not loaded");
+                    return;
+                }
 
-                // Wait for the CCP to be ready before subscribing to events
-                const checkCCPReady = setInterval(() => {
-                    if (window.connect.core.getAgentDataProvider()) {
-                        clearInterval(checkCCPReady);
-                        console.log("CDEBUG ===> CCP is ready in iframe, subscribing to events");
-                        subscribeConnectEvents();
-                    } else {
-                        console.log("CDEBUG ===> Waiting for CCP to be ready in iframe...");
-                    }
-                }, 1000);
-
-                // Cleanup interval on component unmount
-                return () => clearInterval(checkCCPReady);
-            } catch (error) {
-                console.error("CDEBUG ===> Error initializing connect in iframe:", error);
-            }
-        } else {
-            // We're running standalone
-            console.log("CDEBUG ===> Initializing in standalone context");
-            window.connect.core.initCCP(
-                document.getElementById("ccp-container"),
-                {
+                // Initialize CCP with proper configuration
+                const initConfig = {
                     ccpUrl: connectUrl + "/connect/ccp-v2/",
-                    loginPopup: true,
-                    loginOptions: {
+                    loginPopup: !isInIframe,
+                    loginOptions: isInIframe ? undefined : {
                         autoClose: true,
                         height: 600,
                         width: 400,
@@ -169,38 +140,58 @@ const Ccp = () => {
                         allowFramedSoftphone: true,
                         disableRingtone: false,
                         ringtoneUrl: "./ringtone.mp3"
+                    },
+                    pageOptions: {
+                        enableAudioDeviceSettings: true,
+                        enablePhoneTypeSettings: true
+                    },
+                    ccpAckTimeout: 5000,
+                    ccpSynTimeout: 3000,
+                    ccpLoadTimeout: 10000
+                };
+
+                console.log("CDEBUG ===> Initializing CCP with config:", initConfig);
+
+                // Initialize CCP
+                await window.connect.core.initCCP(
+                    document.getElementById("ccp-container"),
+                    initConfig
+                );
+
+                // Wait for CCP to be ready
+                const checkCCPReady = setInterval(() => {
+                    if (window.connect.core.getAgentDataProvider()) {
+                        clearInterval(checkCCPReady);
+                        console.log("CDEBUG ===> CCP is ready, subscribing to events");
+                        subscribeConnectEvents();
+                    } else {
+                        console.log("CDEBUG ===> Waiting for CCP to be ready...");
                     }
-                }
-            );
+                }, 1000);
 
-            // Wait for the CCP to be ready before subscribing to events
-            const checkCCPReady = setInterval(() => {
-                if (window.connect.core.getAgentDataProvider()) {
-                    clearInterval(checkCCPReady);
-                    console.log("CDEBUG ===> CCP is ready, subscribing to events");
-                    subscribeConnectEvents();
-                } else {
-                    console.log("CDEBUG ===> Waiting for CCP to be ready...");
-                }
-            }, 1000);
+                // Cleanup interval on component unmount
+                return () => clearInterval(checkCCPReady);
+            } catch (error) {
+                console.error("CDEBUG ===> Error during Connect Streams initialization:", error);
+                // Retry initialization after a delay
+                setTimeout(initConnectStreams, 5000);
+            }
+        };
 
-            // Cleanup interval on component unmount
-            return () => clearInterval(checkCCPReady);
-        }
+        // Start initialization
+        initConnectStreams();
     }, []);
 
     function subscribeConnectEvents() {
-        const isInIframe = window.self !== window.top;
-        const connect = window.connect; // Always use our own connect instance
-        
-        console.log("CDEBUG ===> Subscribing to connect events in context:", isInIframe ? "iframe" : "standalone");
-        console.log("CDEBUG ===> Connect object available:", !!connect);
-        console.log("CDEBUG ===> Connect.core available:", !!(connect && connect.core));
-
-        if (!connect || !connect.core) {
-            console.error("CDEBUG ===> Connect object not available");
+        if (!window.connect || !window.connect.core) {
+            console.error("CDEBUG ===> Connect Streams not initialized");
             return;
         }
+
+        const connect = window.connect;
+        console.log("CDEBUG ===> Subscribing to connect events");
+        console.log("CDEBUG ===> Connect object available:", !!connect);
+        console.log("CDEBUG ===> Connect.core available:", !!(connect && connect.core));
 
         connect.core.onViewContact(function(event) {
             var contactId = event.contactId;

@@ -36,16 +36,25 @@ const Chatroom = (props) => {
     }
 
     useEffect(() => {
-
-        // this ensures that the chat window will auto scoll to ensure the more recent message is in view
-        if (messageEl) {
-            messageEl.current.addEventListener('DOMNodeInserted', event => {
-                const { currentTarget: target } = event;
-                target.scroll({ top: target.scrollHeight, behavior: 'smooth' });
+        // this ensures that the chat window will auto scroll to ensure the more recent message is in view
+        if (messageEl && messageEl.current) {
+            const observer = new MutationObserver((mutations) => {
+                messageEl.current.scroll({ top: messageEl.current.scrollHeight, behavior: 'smooth' });
             });
+
+            observer.observe(messageEl.current, {
+                childList: true,
+                subtree: true
+            });
+
+            // Cleanup observer on component unmount
+            return () => observer.disconnect();
         }
+
         // this ensure that the input box has the focus on load and after each entry
-        input.current.focus();
+        if (input && input.current) {
+            input.current.focus();
+        }
     }, []);
 
 

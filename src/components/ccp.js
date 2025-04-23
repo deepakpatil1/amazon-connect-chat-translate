@@ -197,35 +197,52 @@ const Ccp = () => {
         // Initialize the Streams API
         if (isInIframe) {
             // We're in an iframe (Agent Workspace)
-            // Get the auth token from the parent window
-            const authToken = window.parent.connect.core.getAuthToken();
-            
-            if (!authToken) {
-                console.error("No authentication token found. Please ensure you're logged into Amazon Connect.");
-                return;
+            try {
+                // Initialize with the parent window's context
+                window.connect.core.init({
+                    ccpUrl: connectUrl + "/connect/ccp-v2/",
+                    region: process.env.REACT_APP_CONNECT_REGION,
+                    softphone: {
+                        allowFramedSoftphone: true,
+                        disableRingtone: false,
+                        ringtoneUrl: "./ringtone.mp3"
+                    }
+                });
+
+                // Wait for the CCP to be ready before subscribing to events
+                const checkCCPReady = setInterval(() => {
+                    if (window.connect.core.getAgentDataProvider()) {
+                        clearInterval(checkCCPReady);
+                        subscribeConnectEvents();
+                    }
+                }, 1000);
+
+                // Cleanup interval on component unmount
+                return () => clearInterval(checkCCPReady);
+            } catch (error) {
+                console.error("Error initializing CCP in iframe:", error);
+                // Fallback to standalone mode if iframe initialization fails
+                window.connect.core.initCCP(
+                    document.getElementById("ccp-container"),
+                    {
+                        ccpUrl: connectUrl + "/connect/ccp-v2/",
+                        loginPopup: true,
+                        loginOptions: {
+                            autoClose: true,
+                            height: 600,
+                            width: 400,
+                            top: 0,
+                            left: 0
+                        },
+                        region: process.env.REACT_APP_CONNECT_REGION,
+                        softphone: {
+                            allowFramedSoftphone: true,
+                            disableRingtone: false,
+                            ringtoneUrl: "./ringtone.mp3"
+                        }
+                    }
+                );
             }
-
-            window.connect.core.init({
-                ccpUrl: connectUrl + "/connect/ccp-v2/",
-                region: process.env.REACT_APP_CONNECT_REGION,
-                authToken: authToken,
-                softphone: {
-                    allowFramedSoftphone: true,
-                    disableRingtone: false,
-                    ringtoneUrl: "./ringtone.mp3"
-                }
-            });
-
-            // Wait for the CCP to be ready before subscribing to events
-            const checkCCPReady = setInterval(() => {
-                if (window.connect.core.getAgentDataProvider()) {
-                    clearInterval(checkCCPReady);
-                    subscribeConnectEvents();
-                }
-            }, 1000);
-
-            // Cleanup interval on component unmount
-            return () => clearInterval(checkCCPReady);
         } else {
             // We're running standalone
             window.connect.core.initCCP(

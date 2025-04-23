@@ -197,9 +197,18 @@ const Ccp = () => {
         // Initialize the Streams API
         if (isInIframe) {
             // We're in an iframe (Agent Workspace)
+            // Get the auth token from the parent window
+            const authToken = window.parent.connect.core.getAuthToken();
+            
+            if (!authToken) {
+                console.error("No authentication token found. Please ensure you're logged into Amazon Connect.");
+                return;
+            }
+
             window.connect.core.init({
                 ccpUrl: connectUrl + "/connect/ccp-v2/",
                 region: process.env.REACT_APP_CONNECT_REGION,
+                authToken: authToken,
                 softphone: {
                     allowFramedSoftphone: true,
                     disableRingtone: false,

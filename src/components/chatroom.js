@@ -10,7 +10,7 @@ const Chatroom = (props) => {
     const [Chats] = useGlobalState('Chats');
     const currentContactId = useGlobalState('currentContactId');
     const [newMessage, setNewMessage] = useState("");
-    const [languageTranslate] = useGlobalState('languageTranslate');
+    const [languageTranslate, setLanguageTranslate] = useGlobalState('languageTranslate');
     const [languageOptions] = useGlobalState('languageOptions');
     const agentUsername = 'AGENT';
     const messageEl = useRef(null);
@@ -65,10 +65,12 @@ const Chatroom = (props) => {
         // Find the language for the current contact
         let destLang = languageTranslate.find(o => o.contactId === currentContactId[0]);
         
-        // If no language is found, use a default language or show an error
+        // If no language is found, set a default language (e.g., 'en' for English)
         if (!destLang || !destLang.lang) {
-            console.error("No language found for the current contact");
-            return;
+            console.log("No language found for the current contact, setting default language 'en'");
+            destLang = { contactId: currentContactId[0], lang: 'en' };
+            // Update the languageTranslate state
+            setLanguageTranslate([...languageTranslate, destLang]);
         }
 
         console.log("destLang: ", destLang);

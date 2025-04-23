@@ -118,23 +118,36 @@ const Ccp = () => {
             // We're in an iframe (Agent Workspace)
             console.log("CDEBUG ===> Initializing in Agent Workspace context");
             try {
-                // Wait for the parent window's connect object to be available
-                const checkParentConnect = setInterval(() => {
-                    if (window.parent.connect && window.parent.connect.core) {
-                        clearInterval(checkParentConnect);
-                        console.log("CDEBUG ===> Parent window's connect object is available");
-                        
-                        // Use the parent window's context for event subscription
+                // Initialize our own connect instance in the iframe
+                window.connect.core.initCCP(
+                    document.getElementById("ccp-container"),
+                    {
+                        ccpUrl: connectUrl + "/connect/ccp-v2/",
+                        loginPopup: false, // Disable login popup in iframe
+                        region: process.env.REACT_APP_CONNECT_REGION,
+                        softphone: {
+                            allowFramedSoftphone: true,
+                            disableRingtone: false,
+                            ringtoneUrl: "./ringtone.mp3"
+                        }
+                    }
+                );
+
+                // Wait for the CCP to be ready before subscribing to events
+                const checkCCPReady = setInterval(() => {
+                    if (window.connect.core.getAgentDataProvider()) {
+                        clearInterval(checkCCPReady);
+                        console.log("CDEBUG ===> CCP is ready in iframe, subscribing to events");
                         subscribeConnectEvents();
                     } else {
-                        console.log("CDEBUG ===> Waiting for parent connect object...");
+                        console.log("CDEBUG ===> Waiting for CCP to be ready in iframe...");
                     }
                 }, 1000);
 
                 // Cleanup interval on component unmount
-                return () => clearInterval(checkParentConnect);
+                return () => clearInterval(checkCCPReady);
             } catch (error) {
-                console.error("CDEBUG ===> Error accessing parent window's connect object:", error);
+                console.error("CDEBUG ===> Error initializing connect in iframe:", error);
             }
         } else {
             // We're running standalone
@@ -178,7 +191,7 @@ const Ccp = () => {
 
     function subscribeConnectEvents() {
         const isInIframe = window.self !== window.top;
-        const connect = isInIframe ? window.parent.connect : window.connect;
+        const connect = window.connect; // Always use our own connect instance
         
         console.log("CDEBUG ===> Subscribing to connect events in context:", isInIframe ? "iframe" : "standalone");
         console.log("CDEBUG ===> Connect object available:", !!connect);

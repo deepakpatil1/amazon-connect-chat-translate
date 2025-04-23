@@ -27,6 +27,6 @@ frontend:
     - pattern: '**/*'
       headers:
         - key: Content-Security-Policy
-          value: frame-ancestors *;
+          value: "frame-ancestors https://*.my.connect.aws https://*.awsapps.com; default-src 'self' https://*.amazonaws.com https://*.amazon.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.amazonaws.com https://*.amazon.com; style-src 'self' 'unsafe-inline' https://*.amazonaws.com https://*.amazon.com; img-src 'self' data: https://*.amazonaws.com https://*.amazon.com; connect-src 'self' https://*.amazonaws.com https://*.amazon.com"
         - key: X-Frame-Options
-          value: ALLOWALL
+          value: ALLOW-FROM https://*.my.connect.aws

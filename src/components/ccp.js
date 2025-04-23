@@ -190,20 +190,67 @@ const Ccp = () => {
     // *****
     useEffect(() => {
         const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
-        window.connect.agentApp.initApp(
-            "ccp",
-            "ccp-container",
-            connectUrl + "/connect/ccp-v2/", { 
-                ccpParams: { 
+        
+        // Check if we're running in an iframe
+        const isInIframe = window.self !== window.top;
+        
+        // Initialize the Streams API
+        if (isInIframe) {
+            // We're in an iframe (Agent Workspace)
+            window.connect.core.init({
+                ccpUrl: connectUrl + "/connect/ccp-v2/",
+                region: process.env.REACT_APP_CONNECT_REGION,
+                softphone: {
+                    allowFramedSoftphone: true,
+                    disableRingtone: false,
+                    ringtoneUrl: "./ringtone.mp3"
+                }
+            });
+
+            // Wait for the CCP to be ready before subscribing to events
+            const checkCCPReady = setInterval(() => {
+                if (window.connect.core.getAgentDataProvider()) {
+                    clearInterval(checkCCPReady);
+                    subscribeConnectEvents();
+                }
+            }, 1000);
+
+            // Cleanup interval on component unmount
+            return () => clearInterval(checkCCPReady);
+        } else {
+            // We're running standalone
+            window.connect.core.initCCP(
+                document.getElementById("ccp-container"),
+                {
+                    ccpUrl: connectUrl + "/connect/ccp-v2/",
+                    loginPopup: true,
+                    loginOptions: {
+                        autoClose: true,
+                        height: 600,
+                        width: 400,
+                        top: 0,
+                        left: 0
+                    },
                     region: process.env.REACT_APP_CONNECT_REGION,
-                    pageOptions: {                  // optional
-                        enableAudioDeviceSettings: true, // optional, defaults to 'false'
-                        enablePhoneTypeSettings: true // optional, defaults to 'true'
-                      }
-                } 
-            }
-        );
-        subscribeConnectEvents();
+                    softphone: {
+                        allowFramedSoftphone: true,
+                        disableRingtone: false,
+                        ringtoneUrl: "./ringtone.mp3"
+                    }
+                }
+            );
+
+            // Wait for the CCP to be ready before subscribing to events
+            const checkCCPReady = setInterval(() => {
+                if (window.connect.core.getAgentDataProvider()) {
+                    clearInterval(checkCCPReady);
+                    subscribeConnectEvents();
+                }
+            }, 1000);
+
+            // Cleanup interval on component unmount
+            return () => clearInterval(checkCCPReady);
+        }
     }, []);
 
 

@@ -5,7 +5,13 @@ import awsconfig from '../aws-exports';
 import Chatroom from './chatroom';
 import translateText from './translate';
 import detectText from './detectText';
-import { addChat, setLanguageTranslate, clearChat, useGlobalState, setCurrentContactId } from '../store/state';
+import {
+  addChat,
+  setLanguageTranslate,
+  clearChat,
+  useGlobalState,
+  setCurrentContactId
+} from '../store/state';
 
 Amplify.configure(awsconfig);
 
@@ -18,19 +24,6 @@ const Ccp = () => {
   const [agentChatSessionState, setAgentChatSessionState] = useState([]);
   const [setRefreshChild] = useState([]);
   const [isStandalone, setIsStandalone] = useState(true);
-
-  function getEvents(contact, agentChatSession) {
-    contact.getAgentConnection().getMediaController().then(controller => {
-      controller.onMessage(messageData => {
-        if (messageData.chatDetails.participantId === messageData.data.ParticipantId) {
-          console.log(`CDEBUG ===> Agent ${messageData.data.DisplayName} Says`, messageData.data.Content);
-        } else {
-          console.log(`CDEBUG ===> Customer ${messageData.data.DisplayName} Says`, messageData.data.Content);
-          processChatText(messageData.data.Content, messageData.data.Type, messageData.data.ContactId);
-        }
-      });
-    });
-  }
 
   async function processChatText(content, type, contactId) {
     let textLang = '';
@@ -56,34 +49,53 @@ const Ccp = () => {
     setLanguageTranslate(languageTranslate);
 
     const translatedMessage = await translateText(content, textLang, 'en');
-
     const data2 = {
       contactId,
       username: 'customer',
       content: <p>{content}</p>,
       translatedMessage: <p>{translatedMessage}</p>
     };
-
     addChat(prevMsg => [...prevMsg, data2]);
   }
 
-  function subscribeConnectEvents() {
-    if (!window.connect || !window.connect.contact || !window.connect.agent) {
-      console.warn('connect object not ready, retrying...');
-      setTimeout(subscribeConnectEvents, 1000);
+  function getEvents(contact, agentChatSession) {
+    contact.getAgentConnection().getMediaController().then(controller => {
+      controller.onMessage(messageData => {
+        if (messageData.chatDetails.participantId === messageData.data.ParticipantId) {
+          console.log(`Agent ${messageData.data.DisplayName} says:`, messageData.data.Content);
+        } else {
+          console.log(`Customer ${messageData.data.DisplayName} says:`, messageData.data.Content);
+          processChatText(messageData.data.Content, messageData.data.Type, messageData.data.ContactId);
+        }
+      });
+    });
+  }
+
+  function subscribeConnectEvents(retry = 0) {
+    if (!window.connect) {
+      if (retry < 10) {
+        console.warn('connect not ready, retrying...');
+        setTimeout(() => subscribeConnectEvents(retry + 1), 1000);
+      } else {
+        console.error('Amazon Connect not available after retries.');
+      }
       return;
     }
 
-    window.connect.core?.onViewContact(event => {
-      console.log('CDEBUG ===> onViewContact', event.contactId);
-      setCurrentContactId(event.contactId);
-    });
+    if (window.connect.core?.onViewContact) {
+      window.connect.core.onViewContact(event => {
+        const contactId = event.contactId;
+        console.log("CDEBUG ===> onViewContact", contactId);
+        setCurrentContactId(contactId);
+      });
+    } else {
+      console.warn("connect.core.onViewContact is not available – likely in Agent Workspace");
+    }
 
-    if (window.connect.ChatSession) {
-      console.log('CDEBUG ===> Subscribing to Connect Contact Events for chats');
+    if (typeof window.connect.contact === 'function') {
       window.connect.contact(contact => {
         contact.onConnecting(() => {
-          console.log('CDEBUG ===> onConnecting() >>', contact.contactId);
+          console.log("onConnecting >>", contact.contactId);
         });
 
         contact.onAccepted(async () => {
@@ -106,30 +118,25 @@ const Ccp = () => {
           getEvents(contact, agentChatSession);
         });
 
-        contact.onRefresh(() => {
-          console.log('CDEBUG ===> onRefresh >>', contact.contactId);
-        });
-
         contact.onEnded(() => {
-          console.log('CDEBUG ===> onEnded >>', contact.contactId);
+          console.log("onEnded >>", contact.contactId);
           setLang('');
         });
 
         contact.onDestroy(() => {
-          console.log('CDEBUG ===> onDestroy >>', contact.contactId);
+          console.log("onDestroy >>", contact.contactId);
           setCurrentContactId('');
           clearChat();
         });
       });
+    }
 
+    if (typeof window.connect.agent === 'function') {
       window.connect.agent(agent => {
         agent.onStateChange(stateChange => {
-          console.log('CDEBUG ===> Agent State:', stateChange.newState);
+          console.log("Agent state changed:", stateChange.newState);
         });
       });
-    } else {
-      console.log('CDEBUG ===> ChatSession not ready, retrying...');
-      setTimeout(subscribeConnectEvents, 3000);
     }
   }
 
@@ -138,11 +145,12 @@ const Ccp = () => {
     setIsStandalone(!inIframe);
 
     if (!inIframe) {
+      console.log("App running standalone → initializing CCP");
       const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
       window.connect.agentApp.initApp(
-        'ccp',
-        'ccp-container',
-        connectUrl + '/connect/ccp-v2/',
+        "ccp",
+        "ccp-container",
+        connectUrl + "/connect/ccp-v2/",
         {
           ccpParams: {
             region: process.env.REACT_APP_CONNECT_REGION,
@@ -154,7 +162,7 @@ const Ccp = () => {
         }
       );
     } else {
-      console.log('App running inside iframe → skipping CCP init');
+      console.log("App running inside iframe → skipping CCP init");
     }
 
     subscribeConnectEvents();

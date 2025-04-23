@@ -91,6 +91,11 @@ const Ccp = () => {
         const isInIframe = window.self !== window.top;
         const connect = isInIframe ? window.parent.connect : window.connect;
 
+        if (!connect || !connect.core) {
+            console.error("Connect object not available");
+            return;
+        }
+
         connect.core.onViewContact(function(event) {
             var contactId = event.contactId;
             console.log("CDEBUG ===> onViewContact", contactId)
@@ -191,66 +196,21 @@ const Ccp = () => {
         if (isInIframe) {
             // We're in an iframe (Agent Workspace)
             try {
-                // Get the parent window's connect object
-                const parentConnect = window.parent.connect;
-                
-                if (!parentConnect) {
-                    console.error("Parent window's connect object not found");
-                    return;
-                }
-
-                // Use the parent window's context
-                parentConnect.core.init({
-                    ccpUrl: connectUrl + "/connect/ccp-v2/",
-                    region: process.env.REACT_APP_CONNECT_REGION,
-                    softphone: {
-                        allowFramedSoftphone: true,
-                        disableRingtone: false,
-                        ringtoneUrl: "./ringtone.mp3"
-                    },
-                    loginPopup: false,
-                    loginOptions: {
-                        autoClose: true,
-                        height: 600,
-                        width: 400,
-                        top: 0,
-                        left: 0
-                    }
-                });
-
-                // Wait for the CCP to be ready before subscribing to events
-                const checkCCPReady = setInterval(() => {
-                    if (parentConnect.core.getAgentDataProvider()) {
-                        clearInterval(checkCCPReady);
+                // Wait for the parent window's connect object to be available
+                const checkParentConnect = setInterval(() => {
+                    if (window.parent.connect && window.parent.connect.core) {
+                        clearInterval(checkParentConnect);
+                        console.log("Parent window's connect object is available");
+                        
+                        // Use the parent window's context for event subscription
                         subscribeConnectEvents();
                     }
                 }, 1000);
 
                 // Cleanup interval on component unmount
-                return () => clearInterval(checkCCPReady);
+                return () => clearInterval(checkParentConnect);
             } catch (error) {
-                console.error("Error initializing CCP in iframe:", error);
-                // Fallback to standalone mode if iframe initialization fails
-                window.connect.core.initCCP(
-                    document.getElementById("ccp-container"),
-                    {
-                        ccpUrl: connectUrl + "/connect/ccp-v2/",
-                        loginPopup: true,
-                        loginOptions: {
-                            autoClose: true,
-                            height: 600,
-                            width: 400,
-                            top: 0,
-                            left: 0
-                        },
-                        region: process.env.REACT_APP_CONNECT_REGION,
-                        softphone: {
-                            allowFramedSoftphone: true,
-                            disableRingtone: false,
-                            ringtoneUrl: "./ringtone.mp3"
-                        }
-                    }
-                );
+                console.error("Error accessing parent window's connect object:", error);
             }
         } else {
             // We're running standalone

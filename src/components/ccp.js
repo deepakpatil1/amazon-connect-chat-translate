@@ -82,61 +82,75 @@ const Ccp = () => {
       return;
     }
 
+    // Safe usage of onViewContact
     if (window.connect.core?.onViewContact) {
-      window.connect.core.onViewContact(event => {
-        const contactId = event.contactId;
-        console.log("CDEBUG ===> onViewContact", contactId);
-        setCurrentContactId(contactId);
-      });
-    } else {
-      console.warn("connect.core.onViewContact is not available – likely in Agent Workspace");
+      try {
+        window.connect.core.onViewContact(event => {
+          console.log("onViewContact", event.contactId);
+          setCurrentContactId(event.contactId);
+        });
+      } catch (err) {
+        console.warn('Failed onViewContact:', err);
+      }
     }
 
-    if (typeof window.connect.contact === 'function') {
-      window.connect.contact(contact => {
-        contact.onConnecting(() => {
-          console.log("onConnecting >>", contact.contactId);
-        });
-
-        contact.onAccepted(async () => {
-          const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
-          const agentChatSession = await cnn.getMediaController();
-          setCurrentContactId(contact.contactId);
-          setAgentChatSessionState(prev => [...prev, { [contact.contactId]: agentChatSession }]);
-
-          const langAttr = contact.getAttributes().x_lang?.value;
-          if (langAttr && Object.values(languageOptions).includes(langAttr)) {
-            languageTranslate.push({ contactId: contact.contactId, lang: langAttr });
-            setLanguageTranslate(languageTranslate);
-            setRefreshChild('updated');
+    // Agent event binding
+    if (typeof window.connect.agent === 'function') {
+      try {
+        window.connect.agent(agent => {
+          if (agent?.onStateChange) {
+            agent.onStateChange(stateChange => {
+              console.log("Agent state changed:", stateChange.newState);
+            });
           }
         });
-
-        contact.onConnected(async () => {
-          const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
-          const agentChatSession = await cnn.getMediaController();
-          getEvents(contact, agentChatSession);
-        });
-
-        contact.onEnded(() => {
-          console.log("onEnded >>", contact.contactId);
-          setLang('');
-        });
-
-        contact.onDestroy(() => {
-          console.log("onDestroy >>", contact.contactId);
-          setCurrentContactId('');
-          clearChat();
-        });
-      });
+      } catch (err) {
+        console.warn('Failed agent binding:', err);
+      }
     }
 
-    if (typeof window.connect.agent === 'function') {
-      window.connect.agent(agent => {
-        agent.onStateChange(stateChange => {
-          console.log("Agent state changed:", stateChange.newState);
+    // Contact event binding
+    if (typeof window.connect.contact === 'function') {
+      try {
+        window.connect.contact(contact => {
+          contact.onConnecting(() => {
+            console.log("onConnecting >>", contact.contactId);
+          });
+
+          contact.onAccepted(async () => {
+            const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
+            const agentChatSession = await cnn.getMediaController();
+            setCurrentContactId(contact.contactId);
+            setAgentChatSessionState(prev => [...prev, { [contact.contactId]: agentChatSession }]);
+
+            const langAttr = contact.getAttributes().x_lang?.value;
+            if (langAttr && Object.values(languageOptions).includes(langAttr)) {
+              languageTranslate.push({ contactId: contact.contactId, lang: langAttr });
+              setLanguageTranslate(languageTranslate);
+              setRefreshChild('updated');
+            }
+          });
+
+          contact.onConnected(async () => {
+            const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
+            const agentChatSession = await cnn.getMediaController();
+            getEvents(contact, agentChatSession);
+          });
+
+          contact.onEnded(() => {
+            console.log("onEnded >>", contact.contactId);
+            setLang('');
+          });
+
+          contact.onDestroy(() => {
+            console.log("onDestroy >>", contact.contactId);
+            setCurrentContactId('');
+            clearChat();
+          });
         });
-      });
+      } catch (err) {
+        console.warn('Failed contact binding:', err);
+      }
     }
   }
 
@@ -169,14 +183,28 @@ const Ccp = () => {
   }, []);
 
   return (
-    <main>
+    <main style={{ backgroundColor: 'white', minHeight: '100vh', padding: '1rem' }}>
       <Grid columns='equal' stackable padded>
         <Grid.Row>
           {isStandalone && <div id="ccp-container"></div>}
+
           <div id="chatroom">
-            <Chatroom session={agentChatSessionState} />
+            {agentChatSessionState.length === 0 ? (
+              <p style={{ color: 'black' }}>
+                Waiting for contact session...
+              </p>
+            ) : (
+              <Chatroom session={agentChatSessionState} />
+            )}
           </div>
         </Grid.Row>
+        {!isStandalone && (
+          <Grid.Row>
+            <div style={{ color: 'black' }}>
+              <strong>Running inside Amazon Connect Agent Workspace</strong>
+            </div>
+          </Grid.Row>
+        )}
       </Grid>
     </main>
   );

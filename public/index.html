@@ -29,8 +29,20 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
-    <script src="https://%REACT_APP_CONNECT_INSTANCE_URL%/connect/ccp-v2/streams.js"></script>
-    <script src="https://%REACT_APP_CONNECT_INSTANCE_URL%/connect/ccp-v2/chat.js"></script>
+    <script>
+      // Get the Connect instance URL from environment variable
+      const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL || '';
+      // Remove any trailing slashes and 'https://' if present
+      const cleanUrl = connectUrl.replace(/\/$/, '').replace(/^https?:\/\//, '');
+      // Load the scripts with proper URL construction
+      const streamsScript = document.createElement('script');
+      streamsScript.src = `https://${cleanUrl}/connect/ccp-v2/streams.js`;
+      document.body.appendChild(streamsScript);
+
+      const chatScript = document.createElement('script');
+      chatScript.src = `https://${cleanUrl}/connect/ccp-v2/chat.js`;
+      document.body.appendChild(chatScript);
+    </script>
     <!--
       This HTML file is a template.
       If you open it directly in the browser, you will see an empty page.

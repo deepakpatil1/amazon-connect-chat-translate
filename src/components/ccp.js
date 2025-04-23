@@ -111,20 +111,39 @@ const Ccp = () => {
         
         // Check if we're running in an iframe
         const isInIframe = window.self !== window.top;
-        const connect = isInIframe ? window.parent.connect : window.connect;
+        console.log("CDEBUG ===> Running in iframe:", isInIframe);
         
         // Initialize the Streams API
         if (isInIframe) {
             // We're in an iframe (Agent Workspace)
+            console.log("CDEBUG ===> Initializing in Agent Workspace context");
             try {
                 // Wait for the parent window's connect object to be available
                 const checkParentConnect = setInterval(() => {
-                    if (connect && connect.core) {
+                    if (window.parent.connect && window.parent.connect.core) {
                         clearInterval(checkParentConnect);
                         console.log("CDEBUG ===> Parent window's connect object is available");
+                        console.log("CDEBUG ===> Parent connect object:", window.parent.connect);
+                        
+                        // Initialize CCP in the iframe
+                        window.parent.connect.core.initCCP(
+                            document.getElementById("ccp-container"),
+                            {
+                                ccpUrl: connectUrl + "/connect/ccp-v2/",
+                                loginPopup: false, // Disable login popup in iframe
+                                region: process.env.REACT_APP_CONNECT_REGION,
+                                softphone: {
+                                    allowFramedSoftphone: true,
+                                    disableRingtone: false,
+                                    ringtoneUrl: "./ringtone.mp3"
+                                }
+                            }
+                        );
                         
                         // Use the parent window's context for event subscription
                         subscribeConnectEvents();
+                    } else {
+                        console.log("CDEBUG ===> Waiting for parent connect object...");
                     }
                 }, 1000);
 
@@ -135,7 +154,8 @@ const Ccp = () => {
             }
         } else {
             // We're running standalone
-            connect.core.initCCP(
+            console.log("CDEBUG ===> Initializing in standalone context");
+            window.connect.core.initCCP(
                 document.getElementById("ccp-container"),
                 {
                     ccpUrl: connectUrl + "/connect/ccp-v2/",
@@ -158,10 +178,12 @@ const Ccp = () => {
 
             // Wait for the CCP to be ready before subscribing to events
             const checkCCPReady = setInterval(() => {
-                if (connect.core.getAgentDataProvider()) {
+                if (window.connect.core.getAgentDataProvider()) {
                     clearInterval(checkCCPReady);
                     console.log("CDEBUG ===> CCP is ready, subscribing to events");
                     subscribeConnectEvents();
+                } else {
+                    console.log("CDEBUG ===> Waiting for CCP to be ready...");
                 }
             }, 1000);
 
@@ -173,13 +195,20 @@ const Ccp = () => {
     function subscribeConnectEvents() {
         const isInIframe = window.self !== window.top;
         const connect = isInIframe ? window.parent.connect : window.connect;
+        
+        console.log("CDEBUG ===> Subscribing to connect events in context:", isInIframe ? "iframe" : "standalone");
+        console.log("CDEBUG ===> Connect object available:", !!connect);
+        console.log("CDEBUG ===> Connect.core available:", !!(connect && connect.core));
 
         if (!connect || !connect.core) {
             console.error("CDEBUG ===> Connect object not available");
             return;
         }
 
-        console.log("CDEBUG ===> Starting to subscribe to connect events");
+        // Subscribe to agent state changes
+        connect.core.onAgentStateChange(function(event) {
+            console.log("CDEBUG ===> Agent state changed:", event);
+        });
 
         connect.core.onViewContact(function(event) {
             var contactId = event.contactId;
@@ -189,34 +218,40 @@ const Ccp = () => {
 
         // If this is a chat session
         if (connect.ChatSession) {
-            console.log("CDEBUG ===> Subscribing to Connect Contact Events for chats");
+            console.log("CDEBUG ===> ChatSession available, subscribing to contact events");
             connect.contact(contact => {
                 console.log("CDEBUG ===> Contact object received:", contact.contactId);
+                console.log("CDEBUG ===> Contact type:", contact.getType());
+                console.log("CDEBUG ===> Contact state:", contact.getState());
 
                 // This is invoked when the chat is accepted
                 contact.onAccepted(async() => {
                     console.log("CDEBUG ===> onAccepted: ", contact);
                     const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
-                    const agentChatSession = await cnn.getMediaController();
-                    setCurrentContactId(contact.contactId);
-                    console.log("CDEBUG ===> agentChatSession ", agentChatSession);
+                    console.log("CDEBUG ===> Agent connection found:", !!cnn);
                     
-                    // Save the session to props
-                    setAgentChatSessionState(agentChatSessionState => [...agentChatSessionState, {[contact.contactId] : agentChatSession}]);
-                
-                    // Get the language from the attributes
-                    const attributes = contact.getAttributes();
-                    console.log("CDEBUG ===> Contact attributes:", attributes);
-                    
-                    if (attributes && attributes.x_lang && attributes.x_lang.value) {
-                        localLanguageTranslate = attributes.x_lang.value;
-                        console.log("CDEBUG ===> Language from attributes:", localLanguageTranslate);
+                    if (cnn) {
+                        const agentChatSession = await cnn.getMediaController();
+                        console.log("CDEBUG ===> Media controller obtained:", !!agentChatSession);
+                        setCurrentContactId(contact.contactId);
                         
-                        if (Object.keys(languageOptions).find(key => languageOptions[key] === localLanguageTranslate) !== undefined) {
-                            console.log("CDEBUG ===> Setting lang code from attributes:", localLanguageTranslate);
-                            languageTranslate.push({contactId: contact.contactId, lang: localLanguageTranslate});
-                            setLanguageTranslate(languageTranslate);
-                            setRefreshChild('updated');
+                        // Save the session to props
+                        setAgentChatSessionState(agentChatSessionState => [...agentChatSessionState, {[contact.contactId] : agentChatSession}]);
+                    
+                        // Get the language from the attributes
+                        const attributes = contact.getAttributes();
+                        console.log("CDEBUG ===> Contact attributes:", attributes);
+                        
+                        if (attributes && attributes.x_lang && attributes.x_lang.value) {
+                            localLanguageTranslate = attributes.x_lang.value;
+                            console.log("CDEBUG ===> Language from attributes:", localLanguageTranslate);
+                            
+                            if (Object.keys(languageOptions).find(key => languageOptions[key] === localLanguageTranslate) !== undefined) {
+                                console.log("CDEBUG ===> Setting lang code from attributes:", localLanguageTranslate);
+                                languageTranslate.push({contactId: contact.contactId, lang: localLanguageTranslate});
+                                setLanguageTranslate(languageTranslate);
+                                setRefreshChild('updated');
+                            }
                         }
                     }
                 });
@@ -225,8 +260,11 @@ const Ccp = () => {
                 contact.onConnected(async() => {
                     console.log("CDEBUG ===> onConnected() >> contactId: ", contact.contactId);
                     const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
-                    const agentChatSession = await cnn.getMediaController();
-                    getEvents(contact, agentChatSession);
+                    if (cnn) {
+                        const agentChatSession = await cnn.getMediaController();
+                        console.log("CDEBUG ===> Media controller obtained in onConnected:", !!agentChatSession);
+                        getEvents(contact, agentChatSession);
+                    }
                 });
             });
         }

@@ -25,22 +25,102 @@ const Ccp = () => {
   const [setRefreshChild] = useState([]);
   const [isStandalone, setIsStandalone] = useState(true);
 
-  // Detect iframe mode and contact context
+  const getEvents = (contact, agentChatSession) => {
+    contact.getAgentConnection().getMediaController().then(controller => {
+      controller.onMessage(messageData => {
+        if (messageData.chatDetails.participantId === messageData.data.ParticipantId) {
+          console.log(`Agent ${messageData.data.DisplayName} says:`, messageData.data.Content);
+        } else {
+          console.log(`Customer ${messageData.data.DisplayName} says:`, messageData.data.Content);
+          processChatText(messageData.data.Content, messageData.data.Type, messageData.data.ContactId);
+        }
+      });
+    });
+  };
+
+  const processChatText = async (content, type, contactId) => {
+    let textLang = '';
+    for (let i = 0; i < languageTranslate.length; i++) {
+      if (languageTranslate[i].contactId === contactId) {
+        textLang = languageTranslate[i].lang;
+        break;
+      }
+    }
+
+    if (!textLang) {
+      const tempLang = await detectText(content);
+      textLang = tempLang.textInterpretation.language;
+    }
+
+    const upsert = (array, item) => {
+      const i = array.findIndex(_item => _item.contactId === item.contactId);
+      if (i > -1) array[i] = item;
+      else array.push(item);
+    };
+
+    upsert(languageTranslate, { contactId, lang: textLang });
+    setLanguageTranslate(languageTranslate);
+
+    const translatedMessage = await translateText(content, textLang, 'en');
+    const data2 = {
+      contactId,
+      username: 'customer',
+      content: <p>{content}</p>,
+      translatedMessage: <p>{translatedMessage}</p>
+    };
+    addChat(prevMsg => [...prevMsg, data2]);
+  };
+
+  const subscribeConnectEvents = () => {
+    if (!window.connect) return;
+
+    if (typeof window.connect.contact === 'function') {
+      window.connect.contact(contact => {
+        contact.onAccepted(async () => {
+          const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
+          const agentChatSession = await cnn.getMediaController();
+          setCurrentContactId(contact.contactId);
+          setAgentChatSessionState(prev => [...prev, { [contact.contactId]: agentChatSession }]);
+
+          const langAttr = contact.getAttributes().x_lang?.value;
+          if (langAttr && Object.values(languageOptions).includes(langAttr)) {
+            languageTranslate.push({ contactId: contact.contactId, lang: langAttr });
+            setLanguageTranslate(languageTranslate);
+            setRefreshChild('updated');
+          }
+        });
+
+        contact.onConnected(async () => {
+          const cnn = contact.getConnections().find(c => c.getType() === window.connect.ConnectionType.AGENT);
+          const agentChatSession = await cnn.getMediaController();
+          getEvents(contact, agentChatSession);
+        });
+
+        contact.onEnded(() => {
+          setLang('');
+        });
+
+        contact.onDestroy(() => {
+          setCurrentContactId('');
+          clearChat();
+        });
+      });
+    }
+  };
+
   useEffect(() => {
     const inIframe = window.self !== window.top;
     setIsStandalone(!inIframe);
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const contactId = urlParams.get('contactId');
-    const agentId = urlParams.get('agentARN');
-
-    if (contactId) {
-      console.log("🔗 Got contactId from URL:", contactId);
-      setCurrentContactId(contactId);
-    }
-
-    if (!inIframe) {
-      console.log("🟢 App running standalone → initializing CCP");
+    if (inIframe) {
+      console.log("🟡 Inside Agent Workspace");
+      const urlParams = new URLSearchParams(window.location.search);
+      const contactId = urlParams.get('contactId');
+      if (contactId) {
+        setCurrentContactId(contactId);
+      }
+    } else {
+      console.log("🟢 Running standalone → initializing CCP");
       const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
       window.connect.agentApp.initApp(
         "ccp",
@@ -56,8 +136,9 @@ const Ccp = () => {
           }
         }
       );
-    } else {
-      console.log("🟡 App running inside iframe → skipping CCP init");
+
+      // Subscribe only in standalone
+      subscribeConnectEvents();
     }
   }, []);
 
@@ -81,11 +162,6 @@ const Ccp = () => {
             <div style={{ color: 'black' }}>
               <strong>Running inside Amazon Connect Agent Workspace</strong>
             </div>
-            {!currentContactId && (
-              <pre style={{ color: 'gray' }}>
-                Debug: {window.location.search}
-              </pre>
-            )}
           </Grid.Row>
         )}
       </Grid>

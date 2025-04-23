@@ -206,6 +206,14 @@ const Ccp = () => {
                         allowFramedSoftphone: true,
                         disableRingtone: false,
                         ringtoneUrl: "./ringtone.mp3"
+                    },
+                    loginPopup: false, // Disable login popup in iframe
+                    loginOptions: {
+                        autoClose: true,
+                        height: 600,
+                        width: 400,
+                        top: 0,
+                        left: 0
                     }
                 });
 

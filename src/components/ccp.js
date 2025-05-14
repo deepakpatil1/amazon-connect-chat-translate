@@ -216,10 +216,10 @@ useEffect(() => {
         <main>
           <Grid columns='equal' stackable padded>
           <Grid.Row>
-            {/* Only show CCP window if not already initialized (i.e., not in Agent Workspace) */}
-            {!(window.connect && window.connect.core && window.connect.core.initialized) && (
+            {/* Always render CCP container  */}
+           
               <div id="ccp-container"></div>
-            )}
+       
             {/* Translate window will laod here. We pass the agent state to be able to use this to push messages to CCP */}
             <div id="chatroom" ><Chatroom session={agentChatSessionState}/> </div> 
             </Grid.Row>

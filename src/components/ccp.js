@@ -216,20 +216,23 @@ useEffect(() => {
 }, []);
 
 
-    return (
-        <main>
-          <Grid columns='equal' stackable padded>
-          <Grid.Row>
-            {/* Always render CCP container  */}
-           
-              <div id="ccp-container"></div>
-       
-            {/* Translate window will laod here. We pass the agent state to be able to use this to push messages to CCP */}
-            <div id="chatroom" ><Chatroom session={agentChatSessionState}/> </div> 
-            </Grid.Row>
-          </Grid>
-        </main>
-    );
+   const isAgentWorkspace = window.location !== window.parent.location;
+   console.log("CDEBUG ===> isAgentWorkspace: ", isAgentWorkspace);
+
+return (
+  <main>
+    <Grid columns='equal' stackable padded>
+      <Grid.Row>
+        {/* Only render CCP container if NOT in Agent Workspace */}
+        {!isAgentWorkspace && <div id="ccp-container"></div>}
+        {/* Always render the translate/chat panel */}
+        <div id="chatroom">
+          <Chatroom session={agentChatSessionState} />
+        </div>
+      </Grid.Row>
+    </Grid>
+  </main>
+);
 };
 
 export default Ccp;

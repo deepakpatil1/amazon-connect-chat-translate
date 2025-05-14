@@ -27,240 +27,199 @@ const Ccp = () => {
     // Subscribe to the chat session
     // *******
     function getEvents(contact, agentChatSession) {
-        console.log("CDEBUG ===> Setting up chat events for contact:", contact.contactId);
-        console.log("CDEBUG ===> Agent chat session:", agentChatSession);
-
+        console.log(agentChatSession);
         contact.getAgentConnection().getMediaController().then(controller => {
-            console.log("CDEBUG ===> Got media controller for contact:", contact.contactId);
-            
             controller.onMessage(messageData => {
-                console.log("CDEBUG ===> Received message:", messageData);
-                
                 if (messageData.chatDetails.participantId === messageData.data.ParticipantId) {
-                    console.log(`CDEBUG ===> Agent ${messageData.data.DisplayName} Says:`, messageData.data.Content);
+                    console.log(`CDEBUG ===> Agent ${messageData.data.DisplayName} Says`,
+                        messageData.data.Content)
                 }
                 else {
-                    console.log(`CDEBUG ===> Customer ${messageData.data.DisplayName} Says:`, messageData.data.Content);
-                    processChatText(messageData.data.Content, messageData.data.Type, messageData.data.ContactId);
+                    console.log(`CDEBUG ===> Customer ${messageData.data.DisplayName} Says`,messageData.data.Content);
+                    processChatText(messageData.data.Content, messageData.data.Type, messageData.data.ContactId );
                 }
-            }).catch(error => {
-                console.error("CDEBUG ===> Error in onMessage handler:", error);
-            });
-        }).catch(error => {
-            console.error("CDEBUG ===> Error getting media controller:", error);
-        });
+            })
+        })
     }
-
     // *******
     // Processing the incoming chat from the Customer
     // *******
     async function processChatText(content, type, contactId) {
-        console.log("CDEBUG ===> Processing chat text:", { content, type, contactId });
-        
-        // Check if we know the language for this contactId
+        // Check if we know the language for this contactId, if not use dectectText(). This process means we only perform comprehend language detection at most once.
+        console.log(type);
         let textLang = '';
-        for(var i = 0; i < languageTranslate.length; i++) {
-            if (languageTranslate[i].contactId === contactId) {
-                textLang = languageTranslate[i].lang;
-                break;
-            }
+          for(var i = 0; i < languageTranslate.length; i++) {
+                if (languageTranslate[i].contactId === contactId) {
+                    textLang = languageTranslate[i].lang
+                     break
+                } 
         }
-
-        // If the contactId was not found in the store, or the store is empty, perform detectText API
-        if (localLanguageTranslate.length === 0 || textLang === '') {
-            console.log("CDEBUG ===> No language found, detecting language");
+        // If the contatId was not found in the store, or the store is empty, perform dectText API to comprehend
+        if (localLanguageTranslate.length === 0 || textLang === ''){
             let tempLang = await detectText(content);
-            textLang = tempLang.textInterpretation.language;
-            console.log("CDEBUG ===> Detected language:", textLang);
+            textLang = tempLang.textInterpretation.language
         }
 
-        // Update (or Add if new contactId) the store with the language code
-        function upsert(array, item) {
+
+         // Update (or Add if new contactId) the store with the the language code
+         function upsert(array, item) { // (1)
             const i = array.findIndex(_item => _item.contactId === item.contactId);
-            if (i > -1) array[i] = item;
+            if (i > -1) array[i] = item; // (2)
             else array.push(item);
-        }
-
-        const newLangEntry = { contactId: contactId, lang: textLang };
-        upsert(languageTranslate, newLangEntry);
-        setLanguageTranslate([...languageTranslate]);
-        console.log("CDEBUG ===> Updated languageTranslate:", languageTranslate);
+          }
+        upsert(languageTranslate, {contactId: contactId, lang: textLang})
+        setLanguageTranslate(languageTranslate);
                 
-        // Translate the customer message into English
+        // Translate the customer message into English.
         let translatedMessage = await translateText(content, textLang, 'en');
-        console.log(`CDEBUG ===> Original Message: ${content}\nTranslated Message: ${translatedMessage}`);
-        
-        // Create the new message to add to Chats
+        console.log(`CDEBUG ===>  Original Message: ` + content + `\n Translated Message: ` + translatedMessage);
+        // create the new message to add to Chats.
         let data2 = {
             contactId: contactId,
             username: 'customer',
             content: <p>{content}</p>,
             translatedMessage: <p>{translatedMessage}</p>
         };
-        
         // Add the new message to the store
         addChat(prevMsg => [...prevMsg, data2]);
-        console.log("CDEBUG ===> Added message to chat store:", data2);
     }
 
     // *******
-    // Subscribing to CCP events
+    // Subscribing to CCP events. See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
     // *******
-    useEffect(() => {
-        // Use the full Connect instance URL from environment variables
-        const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
-        console.log("CDEBUG ===> Connect URL:", connectUrl);
-        
-        // Check if we're running in an iframe
-        const isInIframe = window.self !== window.top;
-        console.log("CDEBUG ===> Running in iframe:", isInIframe);
-
-        // Initialize Connect Streams
-        const initConnectStreams = async () => {
-            try {
-                // First, ensure the connect object is available
-                if (!window.connect) {
-                    console.error("CDEBUG ===> Connect Streams not loaded");
-                    return;
-                }
-
-                // Initialize CCP with proper configuration
-                const initConfig = {
-                    ccpUrl: connectUrl + "/connect/ccp-v2/",
-                    loginPopup: !isInIframe,
-                    loginOptions: isInIframe ? undefined : {
-                        autoClose: true,
-                        height: 600,
-                        width: 400,
-                        top: 0,
-                        left: 0
-                    },
-                    region: process.env.REACT_APP_CONNECT_REGION,
-                    softphone: {
-                        allowFramedSoftphone: true,
-                        disableRingtone: false,
-                        ringtoneUrl: "./ringtone.mp3"
-                    },
-                    pageOptions: {
-                        enableAudioDeviceSettings: true,
-                        enablePhoneTypeSettings: true
-                    },
-                    ccpAckTimeout: 5000,
-                    ccpSynTimeout: 3000,
-                    ccpLoadTimeout: 10000
-                };
-
-                console.log("CDEBUG ===> Initializing CCP with config:", initConfig);
-
-                // Initialize CCP
-                await window.connect.core.initCCP(
-                    document.getElementById("ccp-container"),
-                    initConfig
-                );
-
-                // Wait for CCP to be ready
-                const checkCCPReady = setInterval(() => {
-                    if (window.connect.core.getAgentDataProvider()) {
-                        clearInterval(checkCCPReady);
-                        console.log("CDEBUG ===> CCP is ready, subscribing to events");
-                        subscribeConnectEvents();
-                    } else {
-                        console.log("CDEBUG ===> Waiting for CCP to be ready...");
-                    }
-                }, 1000);
-
-                // Cleanup interval on component unmount
-                return () => clearInterval(checkCCPReady);
-            } catch (error) {
-                console.error("CDEBUG ===> Error during Connect Streams initialization:", error);
-                // Retry initialization after a delay
-                setTimeout(initConnectStreams, 5000);
-            }
-        };
-
-        // Start initialization
-        initConnectStreams();
-    }, []);
-
     function subscribeConnectEvents() {
-        if (!window.connect || !window.connect.core) {
-            console.error("CDEBUG ===> Connect Streams not initialized");
-            return;
-        }
-
-        const connect = window.connect;
-        console.log("CDEBUG ===> Subscribing to connect events");
-        console.log("CDEBUG ===> Connect object available:", !!connect);
-        console.log("CDEBUG ===> Connect.core available:", !!(connect && connect.core));
-
-        connect.core.onViewContact(function(event) {
+        window.connect.core.onViewContact(function(event) {
             var contactId = event.contactId;
-            console.log("CDEBUG ===> onViewContact", contactId);
+            console.log("CDEBUG ===> onViewContact", contactId)
             setCurrentContactId(contactId);    
-        });
+          });
+
+        console.log("CDEBUG ===> subscribeConnectEvents");
 
         // If this is a chat session
-        if (connect.ChatSession) {
-            console.log("CDEBUG ===> ChatSession available, subscribing to contact events");
-            connect.contact(contact => {
-                console.log("CDEBUG ===> Contact object received:", contact.contactId);
-                console.log("CDEBUG ===> Contact type:", contact.getType());
-                console.log("CDEBUG ===> Contact state:", contact.getState());
+        if (window.connect.ChatSession) {
+            console.log("CDEBUG ===> Subscribing to Connect Contact Events for chats");
+            window.connect.contact(contact => {
+
+                // This is invoked when CCP is ringing
+                contact.onConnecting(() => {
+                    console.log("CDEBUG ===> onConnecting() >> contactId: ", contact.contactId);
+                    let contactAttributes = contact.getAttributes();
+                    console.log("CDEBUG ===> contactAttributes: ", JSON.stringify(contactAttributes));
+                    let contactQueue = contact.getQueue();
+                    console.log("CDEBUG ===> contactQueue: ", contactQueue);
+                });
 
                 // This is invoked when the chat is accepted
                 contact.onAccepted(async() => {
                     console.log("CDEBUG ===> onAccepted: ", contact);
-                    const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
-                    if (cnn) {
-                        const agentChatSession = await cnn.getMediaController();
-                        console.log("CDEBUG ===> Media controller obtained:", !!agentChatSession);
-                        setCurrentContactId(contact.contactId);
-                        
-                        // Save the session to props
-                        setAgentChatSessionState(agentChatSessionState => [...agentChatSessionState, {[contact.contactId] : agentChatSession}]);
-                    
-                        // Get the language from the attributes
-                        const attributes = contact.getAttributes();
-                        console.log("CDEBUG ===> Contact attributes:", attributes);
-                        
-                        if (attributes && attributes.x_lang && attributes.x_lang.value) {
-                            localLanguageTranslate = attributes.x_lang.value;
-                            console.log("CDEBUG ===> Language from attributes:", localLanguageTranslate);
-                            
-                            if (Object.keys(languageOptions).find(key => languageOptions[key] === localLanguageTranslate) !== undefined) {
-                                console.log("CDEBUG ===> Setting lang code from attributes:", localLanguageTranslate);
-                                languageTranslate.push({contactId: contact.contactId, lang: localLanguageTranslate});
-                                setLanguageTranslate(languageTranslate);
-                                setRefreshChild('updated');
-                            }
-                        }
+                    const cnn = contact.getConnections().find(cnn => cnn.getType() === window.connect.ConnectionType.AGENT);
+                    const agentChatSession = await cnn.getMediaController();
+                    setCurrentContactId(contact.contactId)
+                    console.log("CDEBUG ===> agentChatSession ", agentChatSession)
+                    // Save the session to props, this is required to send messages within the chatroom.js
+                    setAgentChatSessionState(agentChatSessionState => [...agentChatSessionState, {[contact.contactId] : agentChatSession}])
+                
+                    // Get the language from the attributes, if the value is valid then add to the store
+                    localLanguageTranslate = contact.getAttributes().x_lang.value
+                    if (Object.keys(languageOptions).find(key => languageOptions[key] === localLanguageTranslate) !== undefined){
+                        console.log("CDEBUG ===> Setting lang code from attribites:", localLanguageTranslate)
+                        languageTranslate.push({contactId: contact.contactId, lang: localLanguageTranslate})
+                        setLanguageTranslate(languageTranslate);
+                        setRefreshChild('updated') // Workaround to force a refresh of the chatroom UI to show the updated language based on contact attribute.
+                
                     }
+                    console.log("CDEBUG ===> onAccepted, languageTranslate ", languageTranslate)
+                    
                 });
 
                 // This is invoked when the customer and agent are connected
                 contact.onConnected(async() => {
                     console.log("CDEBUG ===> onConnected() >> contactId: ", contact.contactId);
-                    const cnn = contact.getConnections().find(cnn => cnn.getType() === connect.ConnectionType.AGENT);
-                    if (cnn) {
-                        const agentChatSession = await cnn.getMediaController();
-                        console.log("CDEBUG ===> Media controller obtained in onConnected:", !!agentChatSession);
-                        getEvents(contact, agentChatSession);
-                    }
+                    const cnn = contact.getConnections().find(cnn => cnn.getType() === window.connect.ConnectionType.AGENT);
+                    const agentChatSession = await cnn.getMediaController();
+                    getEvents(contact, agentChatSession);
                 });
+
+                // This is invoked when new agent data is available
+                contact.onRefresh(() => {
+                    console.log("CDEBUG ===> onRefresh() >> contactId: ", contact.contactId);
+                });
+
+                // This is invoked when the agent moves to ACW
+                contact.onEnded(() => {
+                    console.log("CDEBUG ===> onEnded() >> contactId: ", contact.contactId);
+                    setLang('');
+                });
+                
+                // This is invoked when the agent moves out of ACW to a different state
+                contact.onDestroy(() => {
+                    console.log("CDEBUG ===> onDestroy() >> contactId: ", contact.contactId);
+                    // TODO need to remove the previous chats from the store
+                    //clearChat()
+                    setCurrentContactId('');
+                    clearChat();
+                });
+            });
+
+            /* 
+            **** Subscribe to the agent API **** 
+            See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
+            */
+
+            console.log("CDEBUG ===> Subscribing to Connect Agent Events");
+            window.connect.agent((agent) => {
+                agent.onStateChange((agentStateChange) => {
+                    // On agent state change, update the React state.
+                    let state = agentStateChange.newState;
+                    console.log("CDEBUG ===> New State: ", state);
+
+                });
+
             });
         }
         else {
-            console.log("CDEBUG ===> ChatSession not available, waiting 3s");
+            console.log("CDEBUG ===> waiting 3s");
             setTimeout(function() { subscribeConnectEvents(); }, 3000);
         }
     };
+
+
+    // ***** 
+    // Loading CCP
+    // *****
+useEffect(() => {
+    const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
+    const isCCPInitialized = window.connect && window.connect.core && window.connect.core.initialized;
+
+    // Only initialize if not already initialized (e.g., not in Agent Workspace)
+    if (!isCCPInitialized) {
+        window.connect.agentApp.initApp(
+            "ccp",
+            "ccp-container",
+            connectUrl + "/connect/ccp-v2/", { 
+                ccpParams: { 
+                    region: process.env.REACT_APP_CONNECT_REGION,
+                    pageOptions: {                  
+                        enableAudioDeviceSettings: true,
+                        enablePhoneTypeSettings: true
+                    }
+                } 
+            }
+        );
+    }
+    subscribeConnectEvents();
+}, []);
+
 
     return (
         <main>
           <Grid columns='equal' stackable padded>
           <Grid.Row>
-            {/* CCP window will load here */}
-            <div id="ccp-container"></div>
+            {/* Only show CCP window if not already initialized (i.e., not in Agent Workspace) */}
+            {!(window.connect && window.connect.core && window.connect.core.initialized) && (
+              <div id="ccp-container"></div>
+            )}
             {/* Translate window will laod here. We pass the agent state to be able to use this to push messages to CCP */}
             <div id="chatroom" ><Chatroom session={agentChatSessionState}/> </div> 
             </Grid.Row>

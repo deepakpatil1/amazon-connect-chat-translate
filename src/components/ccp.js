@@ -191,9 +191,10 @@ const Ccp = () => {
 useEffect(() => {
     const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
     const isCCPInitialized = window.connect && window.connect.core && window.connect.core.initialized;
+    const isAgentWorkspace = window.location !== window.parent.location; // true if in iframe
 
-    // Only initialize if not already initialized (e.g., not in Agent Workspace)
-    if (!isCCPInitialized) {
+    // Only initialize CCP if not already initialized and NOT in Agent Workspace
+    if (!isCCPInitialized && !isAgentWorkspace) {
         window.connect.agentApp.initApp(
             "ccp",
             "ccp-container",
@@ -207,8 +208,11 @@ useEffect(() => {
                 } 
             }
         );
+        subscribeConnectEvents();
+    } else if (isAgentWorkspace) {
+        // In Agent Workspace, CCP is already loaded, just subscribe to events
+        subscribeConnectEvents();
     }
-    subscribeConnectEvents();
 }, []);
 
 

@@ -114,6 +114,9 @@ const Ccp = () => {
   // *******
   function subscribeConnectEvents() {
     console.log("CDEBUG ===> subscribeConnectEvents");
+    console.log("CDEBUG ===> window.connect: ", window.connect);
+    console.log("CDEBUG ===> window.connect.core: ", window.connect.core);
+    console.log("CDEBUG ===> subscribeConnectEvents window.connect.ChatSession: ", window.connect.core.initialized);
     window.connect.core.onViewContact(function (event) {
       var contactId = event.contactId;
       console.log("CDEBUG ===> onViewContact", contactId);
@@ -265,6 +268,9 @@ const Ccp = () => {
         setTimeout(safeInit, 1000);
         return;
       }
+
+      console.log("CDEBUG ===>  window connect loaded" + window.connect.core.Ccp.initialized);
+      console.log("CDEBUG ===>  window connect initilized" + window.connect.core.initialized);
       const isCCPInitialized =
         window.connect.core && window.connect.core.initialized;
       console.log("CDEBUG ===> isCCPInitialized: ", isCCPInitialized);

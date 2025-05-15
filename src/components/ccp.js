@@ -190,29 +190,39 @@ const Ccp = () => {
     // *****
 useEffect(() => {
     const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
-    const isCCPInitialized = window.connect && window.connect.core && window.connect.core.initialized;
-    const isAgentWorkspace = window.location !== window.parent.location; // true if in iframe
+    const isAgentWorkspace = window.location !== window.parent.location;
 
-    // Only initialize CCP if not already initialized and NOT in Agent Workspace
-    if (!isCCPInitialized && !isAgentWorkspace) {
-        window.connect.agentApp.initApp(
-            "ccp",
-            "ccp-container",
-            connectUrl + "/connect/ccp-v2/", { 
-                ccpParams: { 
-                    region: process.env.REACT_APP_CONNECT_REGION,
-                    pageOptions: {                  
-                        enableAudioDeviceSettings: true,
-                        enablePhoneTypeSettings: true
-                    }
-                } 
-            }
-        );
-        subscribeConnectEvents();
-    } else if (isAgentWorkspace) {
-        // In Agent Workspace, CCP is already loaded, just subscribe to events
-        subscribeConnectEvents();
+    function safeInit() {
+        if (!window.connect) {
+            // Try again in 1 second if Streams API is not ready
+            console.log("CDEBUG ===> waiting 1s for connect to load");
+            setTimeout(safeInit, 1000);
+            return;
+        }
+        const isCCPInitialized = window.connect.core && window.connect.core.initialized;
+
+        if (!isCCPInitialized && !isAgentWorkspace) {
+            console.log("CDEBUG ===> Initializing CCP");
+            window.connect.agentApp.initApp(
+                "ccp",
+                "ccp-container",
+                connectUrl + "/connect/ccp-v2/", { 
+                    ccpParams: { 
+                        region: process.env.REACT_APP_CONNECT_REGION,
+                        pageOptions: {                  
+                            enableAudioDeviceSettings: true,
+                            enablePhoneTypeSettings: true
+                        }
+                    } 
+                }
+            );
+            subscribeConnectEvents();
+        } else if (isAgentWorkspace) {
+            subscribeConnectEvents();
+        }
     }
+
+    safeInit();
 }, []);
 
 

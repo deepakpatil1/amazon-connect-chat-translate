@@ -113,10 +113,6 @@ const Ccp = () => {
   // Subscribing to CCP events. See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
   // *******
   function subscribeConnectEvents() {
-    console.log("CDEBUG ===> subscribeConnectEvents");
-    console.log("CDEBUG ===> window.connect: ", window.connect);
-    console.log("CDEBUG ===> window.connect.core: ", window.connect.core);
-    console.log("CDEBUG ===> subscribeConnectEvents window.connect.ChatSession: ", window.connect.core.initialized);
     window.connect.core.onViewContact(function (event) {
       var contactId = event.contactId;
       console.log("CDEBUG ===> onViewContact", contactId);
@@ -260,59 +256,41 @@ const Ccp = () => {
     const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
     const isAgentWorkspace = window.location !== window.parent.location;
     console.log("CDEBUG ===> isAgentWorkspace: ", isAgentWorkspace);
-
-    function safeInit() {
-      if (!window.connect) {
-        // Try again in 1 second if Streams API is not ready
-        console.log("CDEBUG ===> waiting 1s for connect to load");
-        setTimeout(safeInit, 1000);
-        return;
-      }
-
-      console.log("CDEBUG ===>  window connect loaded" + window.connect.core.Ccp.initialized);
-      console.log("CDEBUG ===>  window connect initilized" + window.connect.core.initialized);
-      const isCCPInitialized =
-        window.connect.core && window.connect.core.initialized;
-      console.log("CDEBUG ===> isCCPInitialized: ", isCCPInitialized);
-
-      if (!isCCPInitialized && !isAgentWorkspace) {
-        console.log("CDEBUG ===> Initializing CCP");
-        window.connect.agentApp.initApp(
-          "ccp",
-          "ccp-container",
-          connectUrl + "/connect/ccp-v2/",
-          {
-            ccpParams: {
-              region: process.env.REACT_APP_CONNECT_REGION,
-              pageOptions: {
-                enableAudioDeviceSettings: true,
-                enablePhoneTypeSettings: true,
-              },
+    console.log("CDEBUG ===> connectUrl: ", connectUrl);
+    if (!isAgentWorkspace) {
+      console.log(
+        "CDEBUG ===> This is not an agent workspace, redirecting to the agent workspace"
+      );
+      window.connect.agentApp.initApp(
+        "ccp",
+        "ccp-container",
+        connectUrl + "/connect/ccp-v2/",
+        {
+          ccpParams: {
+            region: process.env.REACT_APP_CONNECT_REGION,
+            pageOptions: {
+              // optional
+              enableAudioDeviceSettings: true, // optional, defaults to 'false'
+              enablePhoneTypeSettings: true, // optional, defaults to 'true'
             },
-          }
-        );
-        subscribeConnectEvents();
-      } else if (isAgentWorkspace) {
-        console.log("CDEBUG ===> subscribeConnectEvents_Workspace: ", isAgentWorkspace);
-        subscribeConnectEvents();
-      }
+          },
+        }
+      );
     }
-
-    safeInit();
+    // Subscribe to the connect events
+    console.log("CDEBUG ===> window.connect.agentApp.state" + window.connect.agentApp.state);
+    subscribeConnectEvents();
   }, []);
-
-  const isAgentWorkspace = window.location !== window.parent.location;
-  console.log("CDEBUG ===> isAgentWorkspace: ", isAgentWorkspace);
 
   return (
     <main>
       <Grid columns="equal" stackable padded>
         <Grid.Row>
-          {/* Only render CCP container if NOT in Agent Workspace */}
-          {!isAgentWorkspace && <div id="ccp-container"></div>}
-          {/* Always render the translate/chat panel */}
+          {/* CCP window will load here */}
+          <div id="ccp-container"></div>
+          {/* Translate window will laod here. We pass the agent state to be able to use this to push messages to CCP */}
           <div id="chatroom">
-            <Chatroom session={agentChatSessionState} />
+            <Chatroom session={agentChatSessionState} />{" "}
           </div>
         </Grid.Row>
       </Grid>

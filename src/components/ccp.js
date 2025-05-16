@@ -125,6 +125,13 @@ const Ccp = () => {
       });
     }
 
+      // Wait for Streams API to be ready
+  if (typeof window.connect === "undefined" || typeof window.connect.contact !== "function") {
+    console.log("CDEBUG ===> Streams API not ready, retrying in 1s");
+    setTimeout(subscribeConnectEvents, 1000);
+    return;
+  }
+
     console.log("CDEBUG ===> subscribeConnectEvents");
 
     // If this is a chat session

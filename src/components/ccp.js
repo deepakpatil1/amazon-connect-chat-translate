@@ -16,6 +16,7 @@ import {
 Amplify.configure(awsconfig);
 
 const Ccp = () => {
+  const isAgentWorkspace = window.location !== window.parent.location;
   const [languageTranslate] = useGlobalState("languageTranslate");
   var localLanguageTranslate = [];
   const [Chats] = useGlobalState("Chats");
@@ -113,18 +114,18 @@ const Ccp = () => {
   // Subscribing to CCP events. See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
   // *******
   function subscribeConnectEvents() {
-    const isAgentWorkspace = window.location !== window.parent.location;
+   // const isAgentWorkspace = window.location !== window.parent.location;
 
-   // Only use window.connect.core in standalone mode
-  if (!isAgentWorkspace && window.connect.core) {
-    window.connect.core.onViewContact(function (event) {
-      var contactId = event.contactId;
-      console.log("CDEBUG ===> onViewContact", contactId);
-      setCurrentContactId(contactId);
-    });
-  }
+    // Only use window.connect.core in standalone mode
+    if (!isAgentWorkspace && window.connect.core) {
+      window.connect.core.onViewContact(function (event) {
+        var contactId = event.contactId;
+        console.log("CDEBUG ===> onViewContact", contactId);
+        setCurrentContactId(contactId);
+      });
+    }
 
-  console.log("CDEBUG ===> subscribeConnectEvents");
+    console.log("CDEBUG ===> subscribeConnectEvents");
 
     // If this is a chat session
     if (window.connect.ChatSession) {
@@ -259,7 +260,7 @@ const Ccp = () => {
   // *****
   useEffect(() => {
     const connectUrl = process.env.REACT_APP_CONNECT_INSTANCE_URL;
-    const isAgentWorkspace = window.location !== window.parent.location;
+   // const isAgentWorkspace = window.location !== window.parent.location;
     console.log("CDEBUG ===> isAgentWorkspace: ", isAgentWorkspace);
     console.log("CDEBUG ===> connectUrl: ", connectUrl);
     if (!isAgentWorkspace) {
@@ -283,7 +284,10 @@ const Ccp = () => {
       );
     }
     // Subscribe to the connect events
-    console.log("CDEBUG ===> window.connect.agentApp.state" + window.connect.agentApp.state);
+    console.log(
+      "CDEBUG ===> window.connect.agentApp.state" +
+        window.connect.agentApp.state
+    );
     subscribeConnectEvents();
   }, []);
 
@@ -293,7 +297,7 @@ const Ccp = () => {
       <Grid columns="equal" stackable padded>
         <Grid.Row>
           {/* CCP window will load here */}
-           {!isAgentWorkspace && <div id="ccp-container"></div>}
+          {!isAgentWorkspace && <div id="ccp-container"></div>}
           {/* Translate window will laod here. We pass the agent state to be able to use this to push messages to CCP */}
           <div id="chatroom">
             <Chatroom session={agentChatSessionState} />

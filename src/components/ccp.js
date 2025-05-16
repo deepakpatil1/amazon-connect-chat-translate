@@ -289,7 +289,7 @@ const Ccp = () => {
 
   return (
     <main>
-        <h1>react-amazon-connect-chatjs</h1>
+      <div className="header"></div>
       <Grid columns="equal" stackable padded>
         <Grid.Row>
           {/* CCP window will load here */}

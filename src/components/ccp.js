@@ -113,13 +113,18 @@ const Ccp = () => {
   // Subscribing to CCP events. See : https://github.com/aws/amazon-connect-streams/blob/master/Documentation.md
   // *******
   function subscribeConnectEvents() {
+    const isAgentWorkspace = window.location !== window.parent.location;
+
+   // Only use window.connect.core in standalone mode
+  if (!isAgentWorkspace && window.connect.core) {
     window.connect.core.onViewContact(function (event) {
       var contactId = event.contactId;
       console.log("CDEBUG ===> onViewContact", contactId);
       setCurrentContactId(contactId);
     });
+  }
 
-    console.log("CDEBUG ===> subscribeConnectEvents");
+  console.log("CDEBUG ===> subscribeConnectEvents");
 
     // If this is a chat session
     if (window.connect.ChatSession) {

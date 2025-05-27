@@ -10,7 +10,7 @@ const Chatroom = (props) => {
     const [Chats] = useGlobalState('Chats');
     const currentContactId = useGlobalState('currentContactId');
     const [newMessage, setNewMessage] = useState("");
-    const [languageTranslate, setLanguageTranslate] = useGlobalState('languageTranslate');
+    const [languageTranslate] = useGlobalState('languageTranslate');
     const [languageOptions] = useGlobalState('languageOptions');
     const agentUsername = 'AGENT';
     const messageEl = useRef(null);
@@ -36,25 +36,16 @@ const Chatroom = (props) => {
     }
 
     useEffect(() => {
-        // this ensures that the chat window will auto scroll to ensure the more recent message is in view
-        if (messageEl && messageEl.current) {
-            const observer = new MutationObserver((mutations) => {
-                messageEl.current.scroll({ top: messageEl.current.scrollHeight, behavior: 'smooth' });
-            });
 
-            observer.observe(messageEl.current, {
-                childList: true,
-                subtree: true
+        // this ensures that the chat window will auto scoll to ensure the more recent message is in view
+        if (messageEl) {
+            messageEl.current.addEventListener('DOMNodeInserted', event => {
+                const { currentTarget: target } = event;
+                target.scroll({ top: target.scrollHeight, behavior: 'smooth' });
             });
-
-            // Cleanup observer on component unmount
-            return () => observer.disconnect();
         }
-
         // this ensure that the input box has the focus on load and after each entry
-        if (input && input.current) {
-            input.current.focus();
-        }
+        input.current.focus();
     }, []);
 
 
@@ -64,92 +55,81 @@ const Chatroom = (props) => {
         if (newMessage === "") {
             return;
         }
-
-        // Check if we have a valid currentContactId
-        if (!currentContactId || !currentContactId[0]) {
-            console.error("No active contact found");
-            return;
-        }
-
-        // Find the language for the current contact
         let destLang = languageTranslate.find(o => o.contactId === currentContactId[0]);
-        
-        // If no language is found, set a default language (e.g., 'en' for English)
-        if (!destLang || !destLang.lang) {
-            console.log("No language found for the current contact, setting default language 'en'");
-            destLang = { contactId: currentContactId[0], lang: 'en' };
-            // Update the languageTranslate state
-            setLanguageTranslate([...languageTranslate, destLang]);
-        }
-
         console.log("destLang: ", destLang);
 
-        // translate the agent message
+        // translate the agent message  ** Swap the below two round if you wnat to test custom termonologies **
+        // let translatedMessage = await translateText(newMessage, 'en', destLang.lang);
+
+        /***********************************CUSTOM TERMINOLOGY*************************************************    
+         
+            To support custom terminologies comment out the line above, and uncomment the below 2 lines 
+         
+         ******************************************************************************************************/
         console.log(newMessage);
-        let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang);
-        let translatedMessage = translatedMessageAPI.TranslatedText;
+        let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang); // Provide a custom terminology created outside of this deployment
+        //let translatedMessageAPI = await translateTextAPI(newMessage, 'en', destLang.lang, ['connectChatTranslate']); // Provide a custom terminology created outside of this deployment
+        let translatedMessage = translatedMessageAPI.TranslatedText
 
         console.log(` Original Message: ` + newMessage + `\n Translated Message: ` + translatedMessage);
-        
         // create the new message to add to Chats.
         let data2 = {
             contactId: currentContactId[0],
             username: agentUsername,
             content: <p>{newMessage}</p>,
-            translatedMessage: <p>{translatedMessage}</p>,
+            translatedMessage: <p>{translatedMessage}</p>, // set to {translatedMessage.TranslatedText} if using custom terminologies
         };
-        
         // add the new message to the store
         addChat(prevMsg => [...prevMsg, data2]);
-        
         // clear the chat input box
         setNewMessage("");
 
-        // Get the session for sending the message
+        
+        
         const session = retrieveValue(currentContactId[0]);
-        if (session) {
-            await sendMessage(session, translatedMessage);
-        } else {
-            console.error("No active session found for the current contact");
-        }
-    }
 
-    function retrieveValue(key) {
-        var value = "";
-        for(var obj in props.session) {
+        function retrieveValue(key){
+            var value = "";
+            for(var obj in props.session) {
             for(var item in props.session[obj]) {
                 if(item === key) {
                     value = props.session[obj][item];
                     break;
                 }
             }
+            }
+            return value;
         }
-        return value;
+        sendMessage(session, translatedMessage);
     }
+
+
 
     return (
         <div className="chatroom">
-            <h3>Translate - ({languageTranslate.map(lang => {if(lang.contactId === currentContactId[0])return lang.lang})}) {getKeyByValue(languageOptions)}</h3>
-            <ul className="chats" ref={messageEl}>
+                <h3>Translate - ({languageTranslate.map(lang => {if(lang.contactId === currentContactId[0])return lang.lang})}) {getKeyByValue(languageOptions)}</h3>
+                <ul className="chats" ref={messageEl}>
                 {
-                    // iterate over the Chats, and only display the messages for the currently active chat session
-                    Chats.map(chat => {
-                        if(chat.contactId === currentContactId[0])
-                            return <Message chat={chat} user={agentUsername} />
-                    })
-                }
-            </ul>
-            <form className="input" onSubmit={handleSubmit} >
-                <input
-                    ref={input}
-                    maxLength="1024"
-                    type="text"
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                />
-                <input type="submit" value="Submit" />
-            </form>
-        </div>
+                        // iterate over the Chats, and only display the messages for the currently active chat session
+                        Chats.map(chat => {
+                            if(chat.contactId === currentContactId[0])
+                                return<Message chat={chat} user={agentUsername} />
+                            }
+                        )
+                    }
+                </ul>
+                <form className="input" onSubmit={handleSubmit} >
+                    <input
+                          ref={input}
+                          maxLength = "1024"
+                          type="text"
+                          value={newMessage}
+                          onChange={e => setNewMessage(e.target.value)}
+                        />
+                    <input type="submit" value="Submit" />
+                </form>
+ 
+            </div>
     );
 };
 

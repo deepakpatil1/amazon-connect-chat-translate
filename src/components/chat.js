@@ -6,7 +6,7 @@ const Chat = () => {
        const connect = window.connect;
 
        useEffect(() => {
-              console.log("CDEBUG CHAT ===> ", connect.ChatSession);
+              console.log("CHAT ===> ", connect.ChatSession);
        }, []);
 
        return (
